@@ -17,6 +17,7 @@ def run_health_check_server():
     httpd.serve_forever()
 
 threading.Thread(target=run_health_check_server, daemon=True).start()
+
 import logging
 import time
 import json
