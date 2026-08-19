@@ -5,6 +5,8 @@ import random
 import os
 import asyncio
 import nest_asyncio
+import threading
+from http.server import HTTPServer, BaseHTTPRequestHandler
 from datetime import datetime
 from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup
 from telegram.ext import (
@@ -13,6 +15,21 @@ from telegram.ext import (
 )
 from telegram.error import TelegramError, RetryAfter
 from telegram.request import HTTPXRequest
+
+# --- DUMMY WEB SERVER FOR RENDER PORT BINDING ---
+class SimpleHTTPRequestHandler(BaseHTTPRequestHandler):
+    def do_GET(self):
+        self.send_response(200)
+        self.end_headers()
+        self.wfile.write(b"Bot is alive and running on Render!")
+
+def run_dummy_server():
+    port = int(os.environ.get("PORT", 10000))
+    server = HTTPServer(('0.0.0.0', port), SimpleHTTPRequestHandler)
+    server.serve_forever()
+
+# Background Thread-এ পোর্ট চালু রাখা
+threading.Thread(target=run_dummy_server, daemon=True).start()
 
 # Event loop fix for Termux & Linux environments
 nest_asyncio.apply()
