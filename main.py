@@ -1,3 +1,22 @@
+import os
+import threading
+from http.server import BaseHTTPRequestHandler, HTTPServer
+
+class HealthCheckHandler(BaseHTTPRequestHandler):
+    def do_GET(self):
+        self.send_response(200)
+        self.end_headers()
+        self.wfile.write(b"Bot is alive!")
+    def log_message(self, format, *args):
+        return
+
+def run_health_check_server():
+    port = int(os.environ.get("PORT", 8080))
+    server_address = ("0.0.0.0", port)
+    httpd = HTTPServer(server_address, HealthCheckHandler)
+    httpd.serve_forever()
+
+threading.Thread(target=run_health_check_server, daemon=True).start()
 import logging
 import time
 import json
