@@ -8,6 +8,7 @@ import nest_asyncio
 import threading
 from http.server import HTTPServer, BaseHTTPRequestHandler
 from datetime import datetime
+from pymongo import MongoClient
 from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup
 from telegram.ext import (
     ApplicationBuilder, CommandHandler, CallbackQueryHandler, 
@@ -22,7 +23,7 @@ class HealthCheckHandler(BaseHTTPRequestHandler):
         self.send_response(200)
         self.send_header('Content-type', 'text/html')
         self.end_headers()
-        self.wfile.write(b"Bot is alive and running on Render!")
+        self.wfile.write(b"Bot is alive and running on Render with MongoDB!")
 
     def log_message(self, format, *args):
         return  # Server log বন্ধ রাখার জন্য
@@ -47,7 +48,12 @@ logger = logging.getLogger(__name__)
 ADMIN_ID = 7125334953
 BOT_TOKEN = "8914904533:AAHIkpWEsNlVmf0n1NhJa9NvwTEJXQPL828"
 BOT_USERNAME = "incomezone4xbot"
-DATA_FILE = "bot_data.json"
+
+# --- MONGODB CONNECTION SETUP ---
+MONGO_URI = "mongodb+srv://skjihaddff013_db_user:cHMY5LhFbWYwQW6Y@cluster0.79uxlie.mongodb.net/?appName=Cluster0"
+mongo_client = MongoClient(MONGO_URI)
+mongo_db = mongo_client['incomezone_bot_db']
+bot_data_col = mongo_db['bot_state']
 
 # --- RANDOM BANGLADESHI NAMES ---
 FIRST_NAMES = ["Tanvir", "Ashraful", "Mustafizur", "Mahfuzur", "Shahriar", "Nusrat", "Jahangir", "Kawsar", "Zubayer", "Mehedi"]
@@ -55,32 +61,32 @@ MIDDLE_NAMES = ["Hasan", "Alam", "Rahman", "Jahan", "Hossain", "Islam", "Iqbal",
 SUR_NAMES = ["Chowdhury", "Siddique", "Khandakar", "Sardar", "Bhuiyan", "Miah", "Sheikh", "Pramanik", "Talukdar", "Howlader"]
 
 def load_data():
-    if os.path.exists(DATA_FILE):
-        try:
-            with open(DATA_FILE, 'r', encoding='utf-8') as f:
-                data = json.load(f)
-                data['users'] = {int(k): v for k, v in data.get('users', {}).items()}
-                data['pending_requests'] = {int(k): v for k, v in data.get('pending_requests', {}).items()}
-                if 'force_channels' not in data:
-                    data['force_channels'] = []
-                if 'tasks_status' not in data:
-                    data['tasks_status'] = {'facebook': True, 'gmail': True}
-                if 'available_tasks' not in data:
-                    data['available_tasks'] = {'gmail': [], 'facebook': []}
-                if 'config' not in data:
-                    data['config'] = {}
-                data['config'].setdefault('fb_pass', "Maruf@123")
-                data['config'].setdefault('gmail_pass', "Maruf@gmail")
-                data['config'].setdefault('fb_rate', 10.0)
-                data['config'].setdefault('gmail_rate', 16.0)
-                data['config'].setdefault('refer_instant', 1.0)
-                data['config'].setdefault('refer_commission', 0.10)
-                data['config'].setdefault('min_withdraw', 50.0)
-                data['config'].setdefault('payment_channel', "https://t.me/your_payment_channel")
-                data['config'].setdefault('support_username', "jh_husain_00")
-                return data
-        except Exception as e:
-            logger.error(f"Error loading data: {e}")
+    try:
+        doc = bot_data_col.find_one({"_id": "main_data"})
+        if doc:
+            data = doc['data']
+            data['users'] = {int(k): v for k, v in data.get('users', {}).items()}
+            data['pending_requests'] = {int(k): v for k, v in data.get('pending_requests', {}).items()}
+            if 'force_channels' not in data:
+                data['force_channels'] = []
+            if 'tasks_status' not in data:
+                data['tasks_status'] = {'facebook': True, 'gmail': True}
+            if 'available_tasks' not in data:
+                data['available_tasks'] = {'gmail': [], 'facebook': []}
+            if 'config' not in data:
+                data['config'] = {}
+            data['config'].setdefault('fb_pass', "Maruf@123")
+            data['config'].setdefault('gmail_pass', "Maruf@gmail")
+            data['config'].setdefault('fb_rate', 10.0)
+            data['config'].setdefault('gmail_rate', 16.0)
+            data['config'].setdefault('refer_instant', 1.0)
+            data['config'].setdefault('refer_commission', 0.10)
+            data['config'].setdefault('min_withdraw', 50.0)
+            data['config'].setdefault('payment_channel', "https://t.me/your_payment_channel")
+            data['config'].setdefault('support_username', "jh_husain_00")
+            return data
+    except Exception as e:
+        logger.error(f"Error loading data from MongoDB: {e}")
     
     return {
         'users': {},
@@ -113,10 +119,13 @@ def save_data():
             'request_counter': db.get('request_counter', 1),
             'force_channels': force_channels
         }
-        with open(DATA_FILE, 'w', encoding='utf-8') as f:
-            json.dump(data_to_save, f, ensure_ascii=False)
+        bot_data_col.update_one(
+            {"_id": "main_data"},
+            {"$set": {"data": data_to_save}},
+            upsert=True
+        )
     except Exception as e:
-        logger.error(f"Error saving data: {e}")
+        logger.error(f"Error saving data to MongoDB: {e}")
 
 db = load_data()
 config = db['config']
@@ -979,7 +988,7 @@ def run_bot():
     app.add_handler(cfg_conv)
     app.add_handler(CallbackQueryHandler(button_handler))
 
-    logger.info("Starting Telegram Bot...")
+    logger.info("Starting Telegram Bot with MongoDB...")
     app.run_polling(drop_pending_updates=True)
 
 if __name__ == '__main__':
