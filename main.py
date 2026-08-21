@@ -1,23 +1,3 @@
-import os
-import threading
-from http.server import BaseHTTPRequestHandler, HTTPServer
-
-class HealthCheckHandler(BaseHTTPRequestHandler):
-    def do_GET(self):
-        self.send_response(200)
-        self.end_headers()
-        self.wfile.write(b"Bot is alive!")
-    def log_message(self, format, *args):
-        return
-
-def run_health_check_server():
-    port = int(os.environ.get("PORT", 8080))
-    server_address = ("0.0.0.0", port)
-    httpd = HTTPServer(server_address, HealthCheckHandler)
-    httpd.serve_forever()
-
-threading.Thread(target=run_health_check_server, daemon=True).start()
-
 import logging
 import time
 import json
@@ -36,20 +16,25 @@ from telegram.ext import (
 from telegram.error import TelegramError, RetryAfter
 from telegram.request import HTTPXRequest
 
-# --- DUMMY WEB SERVER FOR RENDER PORT BINDING ---
-class SimpleHTTPRequestHandler(BaseHTTPRequestHandler):
+# --- RENDER PORT BINDING & UPTIMEROBOT WEB SERVER ---
+class HealthCheckHandler(BaseHTTPRequestHandler):
     def do_GET(self):
         self.send_response(200)
+        self.send_header('Content-type', 'text/html')
         self.end_headers()
         self.wfile.write(b"Bot is alive and running on Render!")
 
-def run_dummy_server():
-    port = int(os.environ.get("PORT", 10000))
-    server = HTTPServer(('0.0.0.0', port), SimpleHTTPRequestHandler)
-    server.serve_forever()
+    def log_message(self, format, *args):
+        return  # Server log বন্ধ রাখার জন্য
 
-# Background Thread-এ পোর্ট চালু রাখা
-threading.Thread(target=run_dummy_server, daemon=True).start()
+def run_health_check_server():
+    port = int(os.environ.get("PORT", 8080))
+    server_address = ("0.0.0.0", port)
+    httpd = HTTPServer(server_address, HealthCheckHandler)
+    httpd.serve_forever()
+
+# Background Thread-এ সার্ভার অন রাখা
+threading.Thread(target=run_health_check_server, daemon=True).start()
 
 # Event loop fix for Termux & Linux environments
 nest_asyncio.apply()
