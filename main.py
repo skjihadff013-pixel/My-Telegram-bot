@@ -64,9 +64,10 @@ def load_data():
     try:
         doc = bot_data_col.find_one({"_id": "main_data"})
         if doc:
-            data = doc['data']
+            data = doc.get('data', {})
             data['users'] = {int(k): v for k, v in data.get('users', {}).items()}
             data['pending_requests'] = {int(k): v for k, v in data.get('pending_requests', {}).items()}
+            
             if 'force_channels' not in data:
                 data['force_channels'] = []
             if 'tasks_status' not in data:
@@ -75,6 +76,7 @@ def load_data():
                 data['available_tasks'] = {'gmail': [], 'facebook': []}
             if 'config' not in data:
                 data['config'] = {}
+                
             data['config'].setdefault('fb_pass', "Maruf@123")
             data['config'].setdefault('gmail_pass', "Maruf@gmail")
             data['config'].setdefault('fb_rate', 10.0)
@@ -84,6 +86,7 @@ def load_data():
             data['config'].setdefault('min_withdraw', 50.0)
             data['config'].setdefault('payment_channel', "https://t.me/your_payment_channel")
             data['config'].setdefault('support_username', "jh_husain_00")
+            data.setdefault('request_counter', 1)
             return data
     except Exception as e:
         logger.error(f"Error loading data from MongoDB: {e}")
@@ -149,8 +152,8 @@ def init_user(user_id, referrer_id=None):
         users[user_id] = {'balance': 0.0, 'referred_by': None, 'ref_count': 0, 'completed_tasks': 0}
         if referrer_id and referrer_id in users and referrer_id != user_id:
             users[user_id]['referred_by'] = referrer_id
-            users[referrer_id]['balance'] += config['refer_instant']
-            users[referrer_id]['ref_count'] += 1
+            users[referrer_id]['balance'] += config.get('refer_instant', 1.0)
+            users[referrer_id]['ref_count'] = users[referrer_id].get('ref_count', 0) + 1
             save_data()
             return referrer_id
         save_data()
@@ -285,7 +288,7 @@ async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
     elif data == "my_balance":
         bal = get_user_balance(user_id)
         completed = users[user_id].get('completed_tasks', 0)
-        user_pending = sum(1 for req in pending_requests.values() if req['user_id'] == user_id)
+        user_pending = sum(1 for req in pending_requests.values() if req.get('user_id') == user_id)
         
         text = (
             "💳 **আপনার ব্যালেন্স:**\n"
@@ -512,9 +515,9 @@ async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
             await query.message.reply_text("⚠️ আপনার কোনো সক্রিয় কাজ পাওয়া যায়নি।")
             return
 
-        req_id = db['request_counter']
+        req_id = db.get('request_counter', 1)
         pending_requests[req_id] = {'user_id': user_id, 'type': 'gmail', 'data': task}
-        db['request_counter'] += 1
+        db['request_counter'] = req_id + 1
         save_data()
 
         context.user_data.pop('current_task', None)
@@ -629,9 +632,9 @@ async def fb_save_task(update: Update, context: ContextTypes.DEFAULT_TYPE):
     task['uid'] = uid_val
     task['cookies'] = cookies_val
 
-    req_id = db['request_counter']
+    req_id = db.get('request_counter', 1)
     pending_requests[req_id] = {'user_id': user_id, 'type': 'facebook', 'data': task}
-    db['request_counter'] += 1
+    db['request_counter'] = req_id + 1
     save_data()
 
     context.user_data.pop('current_fb_task', None)
@@ -702,13 +705,8 @@ async def save_new_task(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
     count = int(text_val)
 
-    if 'available_tasks' not in db or not isinstance(db['available_tasks'], dict):
-        available_tasks = {'gmail': [], 'facebook': []}
-        db['available_tasks'] = available_tasks
-    else:
-        available_tasks = db['available_tasks']
-        if t_type not in available_tasks:
-            available_tasks[t_type] = []
+    if t_type not in available_tasks:
+        available_tasks[t_type] = []
 
     for _ in range(count):
         f_name = random.choice(FIRST_NAMES)
