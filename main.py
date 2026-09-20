@@ -13,7 +13,7 @@ from pymongo import MongoClient
 from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup
 from telegram.ext import (
     ApplicationBuilder, CommandHandler, CallbackQueryHandler,
-    MessageHandler, ConversationHandler, ContextTypes
+    MessageHandler, ConversationHandler, ContextTypes, filters
 )
 from telegram.error import TelegramError, RetryAfter
 from telegram.request import HTTPXRequest
@@ -47,12 +47,8 @@ ADMIN_ID = 7125334953
 BOT_TOKEN = "8914904533:AAHIKpWeSmLNfvOn1miW--incomezonex4bot"
 BOT_USERNAME = "incomezonex4bot"
 
-# MINOSMS API SETTINGS
-MINOSMS_API_KEY = "mino_live_d1d31e6988628628421553tabec2"
-MINOSMS_BASE_URL = "https://minosms.com"
-
-# MONGODB CONNECTION SETUP
-MONGO_URI = "mongodb+srv://skijihadff013-pixel:mongoc_client@mongod_uri_s... (or your connection string)"
+# MONGODB CONNECTION SETUP (এখানে আপনার সঠিক এবং সম্পূর্ণ MongoDB Atlas URI বসাবেন)
+MONGO_URI = "mongodb+srv://skijihadff013-pixel:your_actual_password@cluster0.xxxxx.mongodb.net/?retryWrites=true&w=majority"
 mongo_client = MongoClient(MONGO_URI)
 mongo_db = mongo_client['incomezone_bot_db']
 bot_data_col = mongo_db['bot_state']
@@ -82,10 +78,14 @@ def save_data():
         logger.error(f"Error saving data: {e}")
 
 data, users, pending_requests = load_data()
-config = bot_data_col.find_one({"_id": "data"}).get('config', {
+config_doc = bot_data_col.find_one({"_id": "data"})
+config = config_doc.get('config', {
     'force_channels': ['@IncomeZoneChannel', '@IncomeZoneChat'],
     'min_withdraw': 30.0
-})
+}) if config_doc else {
+    'force_channels': ['@IncomeZoneChannel', '@IncomeZoneChat'],
+    'min_withdraw': 30.0
+}
 
 WITHDRAW_METHOD, WITHDRAW_AMT = range(2)
 
@@ -110,7 +110,7 @@ def send_force_join_msg(update: Update):
     for ch in config.get('force_channels', []):
         kb.append([InlineKeyboardButton(f"📢 Join {ch}", url=f"https://t.me/{ch.replace('@', '')}")])
     kb.append([InlineKeyboardButton("🔄 Joined Check", callback_data="check_join")])
-    text = "⚠️ **আমাদের বটি ব্যবহার করতে হলে অবশ্যই নিচের চ্যানেলগুলোতে জয়েন করতে হবে!**\n\nজয়েন করার পর নিচের বাটনে চাপ দিন।"
+    text = "⚠️ **আমাদের বটটি ব্যবহার করতে হলে অবশ্যই নিচের চ্যানেলগুলোতে জয়েন করতে হবে!**\n\nজয়েন করার পর নিচের বাটনে চাপ দিন।"
     if update.callback_query:
         return update.callback_query.message.edit_text(text, reply_markup=InlineKeyboardMarkup(kb), parse_mode='Markdown')
     else:
